@@ -18,7 +18,11 @@ data class UserProfile(
     val bloodGroup: String,
     val emergencyContact: String,
     val city: String = "Jaipur, Rajasthan",
-    val qrToken: String
+    val qrToken: String,
+    val heightCm: Double = 168.0,
+    val weightKg: Double = 60.0,
+    val allergies: String = "None known",
+    val isEmailVerified: Boolean = true
 )
 
 data class HealthVitals(

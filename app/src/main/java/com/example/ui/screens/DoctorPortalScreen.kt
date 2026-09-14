@@ -33,7 +33,8 @@ fun DoctorPortalScreen(
     prescriptions: List<Prescription>,
     doctorReports: List<DoctorReviewReport> = emptyList(),
     onConfirmDoctorReview: (String, String) -> Unit = { _, _ -> },
-    onOpenNewConsultation: () -> Unit
+    onOpenNewConsultation: () -> Unit,
+    onOpenSupabaseScanner: ((String?) -> Unit)? = null
 ) {
     var searchToken by remember { mutableStateOf("PH-TOKEN-8472-9102") }
     var isPatientVerified by remember { mutableStateOf(true) }
@@ -156,6 +157,34 @@ fun DoctorPortalScreen(
                         modifier = Modifier.height(52.dp).testTag("doctor_verify_patient_btn")
                     ) {
                         Text("Verify & Pull", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+
+                if (onOpenSupabaseScanner != null) {
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Button(
+                        onClick = { onOpenSupabaseScanner(searchToken.ifBlank { "ABHA-91-8472-9102-4412" }) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(44.dp)
+                            .testTag("doctor_open_supabase_scanner_btn"),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF10B981),
+                            contentColor = Color.White
+                        )
+                    ) {
+                        Icon(
+                            Icons.Default.CloudDownload,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            "Retrieve Full Dossier from Supabase DB",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold
+                        )
                     }
                 }
 

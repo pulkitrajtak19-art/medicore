@@ -34,43 +34,12 @@ fun QrCodeView(
     modifier: Modifier = Modifier,
     sizeDp: Int = 140
 ) {
-    Box(
-        modifier = modifier
-            .size(sizeDp.dp)
-            .clip(RoundedCornerShape(16.dp))
-            .background(Color.White)
-            .border(1.dp, SurfaceBorder, RoundedCornerShape(16.dp))
-            .padding(12.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Canvas(modifier = Modifier.fillMaxSize()) {
-            val cellCount = 13
-            val cellSize = size.width / cellCount
-            val seed = dataToken.hashCode()
-
-            for (r in 0 until cellCount) {
-                for (c in 0 until cellCount) {
-                    val isCornerTopLeft = (r < 4 && c < 4)
-                    val isCornerTopRight = (r < 4 && c >= cellCount - 4)
-                    val isCornerBottomLeft = (r >= cellCount - 4 && c < 4)
-
-                    val isFinderPattern = (isCornerTopLeft && (r == 0 || r == 3 || c == 0 || c == 3 || (r in 1..2 && c in 1..2))) ||
-                            (isCornerTopRight && (r == 0 || r == 3 || c == cellCount - 4 || c == cellCount - 1 || (r in 1..2 && c in cellCount - 3 until cellCount - 1))) ||
-                            (isCornerBottomLeft && (r == cellCount - 4 || r == cellCount - 1 || c == 0 || c == 3 || (r in cellCount - 3 until cellCount - 1 && c in 1..2)))
-
-                    val pseudoRandom = ((seed * (r + 1) * 31 + c * 17) % 7) == 0 || ((r + c) % 3 == 0)
-
-                    if (isFinderPattern || (!isCornerTopLeft && !isCornerTopRight && !isCornerBottomLeft && pseudoRandom)) {
-                        drawRect(
-                            color = if (isFinderPattern) LightBlueHeader else Color(0xFF1E293B),
-                            topLeft = Offset(c * cellSize, r * cellSize),
-                            size = Size(cellSize * 0.92f, cellSize * 0.92f)
-                        )
-                    }
-                }
-            }
-        }
-    }
+    PerfectQrCode(
+        content = dataToken,
+        modifier = modifier,
+        sizeDp = sizeDp,
+        showCenterEmblem = sizeDp >= 120
+    )
 }
 
 @Composable

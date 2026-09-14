@@ -778,62 +778,13 @@ fun PatientHomeScreen(
         Spacer(modifier = Modifier.height(24.dp))
     }
 
-    // Full QR Dialog
+    // Full Identity QR Dialog with real ZXing scannable code & metadata
     if (showQrDialog) {
-        Dialog(onDismissRequest = { showQrDialog = false }) {
-            Card(
-                shape = RoundedCornerShape(24.dp),
-                colors = CardDefaults.cardColors(containerColor = Color.White),
-                border = androidx.compose.foundation.BorderStroke(1.dp, SurfaceBorder),
-                modifier = Modifier.padding(16.dp)
-            ) {
-                Column(
-                    modifier = Modifier.padding(24.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text(
-                        text = "Secure Patient Identity Token",
-                        fontSize = 17.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = LightBlueHeader
-                    )
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Text(
-                        text = "Show this QR to Doctor or Medicine Centre to grant consent-controlled access.",
-                        fontSize = 11.sp,
-                        color = TextMuted,
-                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    QrCodeView(dataToken = user.qrToken, sizeDp = 200)
-
-                    Spacer(modifier = Modifier.height(14.dp))
-                    Text(
-                        text = user.abhaId,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = LightBluePrimary
-                    )
-                    Text(
-                        text = "Token: ${user.qrToken}",
-                        fontSize = 11.sp,
-                        color = TextMuted
-                    )
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    Button(
-                        onClick = { showQrDialog = false },
-                        shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = SoftEmeraldAccent),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text("Done")
-                    }
-                }
-            }
-        }
+        UserIdentityQrDialog(
+            user = user,
+            latestVital = latestVital,
+            onDismiss = { showQrDialog = false }
+        )
     }
 
     // Live Hospital Facility QR Scanner Dialog

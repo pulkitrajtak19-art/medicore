@@ -24,12 +24,48 @@ class HealthViewModel(
     val activeCheckIn: StateFlow<FacilityCheckIn?> = repository.activeCheckIn
     val checkInsHistory: StateFlow<List<FacilityCheckIn>> = repository.checkInsHistory
 
+    fun setUserProfile(user: UserProfile) {
+        repository.setUserProfile(user)
+        syncToSupabase(user)
+    }
+
+    fun syncToSupabase(user: UserProfile? = null) {
+        val targetUser = user ?: currentUser.value ?: return
+        viewModelScope.launch {
+            com.example.data.supabase.SupabaseClient.syncUserData(
+                user = targetUser,
+                vitals = vitalsList.value,
+                prescriptions = prescriptions.value
+            )
+        }
+    }
+
     fun login(emailOrPhone: String, role: UserRole, isPhone: Boolean) {
         repository.login(emailOrPhone, role, isPhone)
     }
 
     fun signUp(name: String, emailOrPhone: String, role: UserRole, age: Int, gender: String, bloodGroup: String, isPhone: Boolean) {
         repository.signUp(name, emailOrPhone, role, age, gender, bloodGroup, isPhone)
+    }
+
+    fun setUser(user: UserProfile) {
+        repository.setUser(user)
+    }
+
+    fun updateUserProfile(
+        age: Int,
+        gender: String,
+        heightCm: Double,
+        weightKg: Double,
+        allergies: String,
+        bloodGroup: String,
+        phone: String,
+        city: String,
+        emergencyContact: String
+    ): UserProfile? {
+        return repository.updateUserProfile(
+            age, gender, heightCm, weightKg, allergies, bloodGroup, phone, city, emergencyContact
+        )
     }
 
     fun switchRole(role: UserRole) {

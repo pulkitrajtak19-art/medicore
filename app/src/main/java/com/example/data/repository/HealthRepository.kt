@@ -1,9 +1,13 @@
 package com.example.data.repository
 
 import com.example.data.model.*
+import com.example.data.supabase.SupabaseClient
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -352,6 +356,10 @@ class HealthRepository {
     val checkInsHistory: StateFlow<List<FacilityCheckIn>> = _checkInsHistory.asStateFlow()
 
 
+    fun setUserProfile(user: UserProfile) {
+        _currentUser.value = user
+    }
+
     fun login(emailOrPhone: String, role: UserRole, isPhone: Boolean = false): UserProfile {
         val user = when (role) {
             UserRole.PATIENT -> defaultPatient.copy(
@@ -390,7 +398,59 @@ class HealthRepository {
             qrToken = qrToken
         )
         _currentUser.value = newUser
+        CoroutineScope(Dispatchers.IO).launch {
+            SupabaseClient.saveOrUpdateUserProfile(newUser)
+        }
         return newUser
+    }
+
+    fun setUser(user: UserProfile) {
+        _currentUser.value = user
+        CoroutineScope(Dispatchers.IO).launch {
+            SupabaseClient.saveOrUpdateUserProfile(user)
+        }
+        addAuditLog(
+            actorName = user.name,
+            actorRole = user.role.displayName,
+            action = "Profile Loaded",
+            details = "Logged in and synchronized profile with Supabase (${user.abhaId})"
+        )
+    }
+
+    fun updateUserProfile(
+        age: Int,
+        gender: String,
+        heightCm: Double,
+        weightKg: Double,
+        allergies: String,
+        bloodGroup: String,
+        phone: String,
+        city: String,
+        emergencyContact: String
+    ): UserProfile? {
+        val current = _currentUser.value ?: return null
+        val updated = current.copy(
+            age = age,
+            gender = gender,
+            heightCm = heightCm,
+            weightKg = weightKg,
+            allergies = allergies,
+            bloodGroup = bloodGroup,
+            phone = phone,
+            city = city,
+            emergencyContact = emergencyContact
+        )
+        _currentUser.value = updated
+        CoroutineScope(Dispatchers.IO).launch {
+            SupabaseClient.saveOrUpdateUserProfile(updated)
+        }
+        addAuditLog(
+            actorName = updated.name,
+            actorRole = updated.role.displayName,
+            action = "Profile Updated in Supabase",
+            details = "Updated height: ${heightCm}cm, weight: ${weightKg}kg, allergies: $allergies"
+        )
+        return updated
     }
 
     fun switchRole(role: UserRole) {
@@ -427,6 +487,7 @@ class HealthRepository {
             recordedBy = "Early Check-in Self / Desk"
         )
         _vitalsList.value = listOf(newVital) + _vitalsList.value
+        SupabaseClient.syncVitalRecord(newVital, _currentUser.value?.abhaId)
 
         addAuditLog(
             actorName = _currentUser.value?.name ?: "Patient",
@@ -469,6 +530,7 @@ class HealthRepository {
 
         if (prescription != null) {
             _prescriptions.value = listOf(prescription) + _prescriptions.value
+            SupabaseClient.syncPrescription(prescription)
         }
 
         val vitalsSnap = _vitalsList.value.firstOrNull()?.let {
@@ -515,6 +577,7 @@ class HealthRepository {
             )
             currentList[index] = updatedRx
             _prescriptions.value = currentList
+            SupabaseClient.syncPrescriptionDispense(prescriptionId, pharmacyName)
 
             // Also configure daily patient medication reminders
             val newReminders = target.items.flatMap { item ->
@@ -567,7 +630,9 @@ class HealthRepository {
     fun markReminderTaken(reminderId: String) {
         _reminders.value = _reminders.value.map {
             if (it.id == reminderId && !it.isTakenToday) {
-                it.copy(isTakenToday = true, streakDays = it.streakDays + 1)
+                val updated = it.copy(isTakenToday = true, streakDays = it.streakDays + 1)
+                SupabaseClient.syncMedicationReminder(updated)
+                updated
             } else it
         }
         addAuditLog(
@@ -650,6 +715,7 @@ class HealthRepository {
         )
 
         _doctorReviewReports.value = listOf(report) + _doctorReviewReports.value
+        SupabaseClient.syncCaseIntake(report)
 
         addAuditLog(
             actorName = patient.name,
@@ -693,13 +759,15 @@ class HealthRepository {
         _consents.value = _consents.value.map {
             if (it.id == consentId) {
                 val newStatus = if (it.status == ConsentStatus.ACTIVE) ConsentStatus.REVOKED else ConsentStatus.ACTIVE
+                val updatedConsent = it.copy(status = newStatus)
+                SupabaseClient.syncConsent(updatedConsent)
                 addAuditLog(
                     actorName = _currentUser.value?.name ?: "Patient",
                     actorRole = "Patient",
                     action = if (newStatus == ConsentStatus.ACTIVE) "Consent Granted" else "Consent Revoked",
                     details = "Updated consent for ${it.requesterName} (${it.facilityName})"
                 )
-                it.copy(status = newStatus)
+                updatedConsent
             } else it
         }
     }
@@ -744,6 +812,7 @@ class HealthRepository {
         )
         _activeCheckIn.value = checkIn
         _checkInsHistory.value = listOf(checkIn) + _checkInsHistory.value
+        SupabaseClient.syncFacilityCheckIn(checkIn)
 
         addAuditLog(
             actorName = facilityName,

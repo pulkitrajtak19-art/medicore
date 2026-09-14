@@ -1,5 +1,6 @@
 package com.example.ui.screens
 
+import android.app.Activity
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -20,21 +21,38 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.data.auth.FirebaseAuthManager
+import com.example.data.model.UserProfile
 import com.example.data.model.UserRole
+import com.example.data.supabase.SupabaseClient
 import com.example.ui.components.SegmentedControl
 import com.example.ui.theme.*
+import kotlinx.coroutines.launch
 
 @Composable
 fun AuthScreen(
     onLoginSuccess: (emailOrPhone: String, role: UserRole, isPhone: Boolean) -> Unit,
-    onSignUpSuccess: (name: String, emailOrPhone: String, role: UserRole, age: Int, gender: String, bloodGroup: String, isPhone: Boolean) -> Unit
+    onSignUpSuccess: (name: String, emailOrPhone: String, role: UserRole, age: Int, gender: String, bloodGroup: String, isPhone: Boolean) -> Unit,
+    onUserProfileReady: (UserProfile) -> Unit = { profile ->
+        if (profile.role == UserRole.PATIENT) {
+            onLoginSuccess(profile.email, profile.role, false)
+        } else {
+            onLoginSuccess(profile.email, profile.role, false)
+        }
+    }
 ) {
+    val context = LocalContext.current
+    val activity = context as? Activity
+    val coroutineScope = rememberCoroutineScope()
+
     var isSignUp by remember { mutableStateOf(false) }
     var authMethodIndex by remember { mutableIntStateOf(0) } // 0: Email, 1: Phone
     var selectedRole by remember { mutableStateOf(UserRole.PATIENT) }
@@ -49,6 +67,8 @@ fun AuthScreen(
     var bloodGroupInput by remember { mutableStateOf("O+") }
     var otpInput by remember { mutableStateOf("") }
     var isOtpSent by remember { mutableStateOf(false) }
+    var isAuthenticatingWithGoogle by remember { mutableStateOf(false) }
+    var authStatusMessage by remember { mutableStateOf<String?>(null) }
 
     val scrollState = rememberScrollState()
 
@@ -105,16 +125,114 @@ fun AuthScreen(
             Spacer(modifier = Modifier.height(4.dp))
 
             Text(
-                text = "Simple. Sober. Secure. • ABDM Aligned",
-                fontSize = 12.sp,
+                text = "Firebase Auth • Supabase Database • ABDM Health ID",
+                fontSize = 11.sp,
                 fontWeight = FontWeight.Medium,
                 letterSpacing = 0.5.sp,
                 color = TextMuted
             )
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(20.dp))
 
-            // Card Container
+            // Google Sign-In Card (Firebase Integration)
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .shadow(2.dp, RoundedCornerShape(18.dp)),
+                shape = RoundedCornerShape(18.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                border = androidx.compose.foundation.BorderStroke(1.dp, SurfaceBorder)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = "FIREBASE GOOGLE AUTHENTICATION",
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.2.sp,
+                        color = LightBluePrimary
+                    )
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    OutlinedButton(
+                        onClick = {
+                            if (activity != null) {
+                                coroutineScope.launch {
+                                    isAuthenticatingWithGoogle = true
+                                    authStatusMessage = "Connecting with Google via Firebase..."
+                                    FirebaseAuthManager.signInWithGoogle(
+                                        activity = activity,
+                                        targetRole = selectedRole,
+                                        onSuccess = { userProfile ->
+                                            isAuthenticatingWithGoogle = false
+                                            onUserProfileReady(userProfile)
+                                        },
+                                        onFailure = { err ->
+                                            isAuthenticatingWithGoogle = false
+                                            authStatusMessage = err
+                                        }
+                                    )
+                                }
+                            } else {
+                                FirebaseAuthManager.fallbackGoogleSignIn(
+                                    role = selectedRole,
+                                    onSuccess = onUserProfileReady
+                                )
+                            }
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(50.dp)
+                            .testTag("google_signin_button"),
+                        shape = RoundedCornerShape(14.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(containerColor = Color(0xFFF8FAFC)),
+                        border = androidx.compose.foundation.BorderStroke(1.5.dp, Color(0xFFCBD5E1))
+                    ) {
+                        if (isAuthenticatingWithGoogle) {
+                            CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Authenticating...", fontSize = 13.sp, color = TextDarkSlate)
+                        } else {
+                            // Google 'G' Symbol representation
+                            Box(
+                                modifier = Modifier
+                                    .size(22.dp)
+                                    .clip(CircleShape)
+                                    .background(Color.White)
+                                    .border(1.dp, Color(0xFFE2E8F0), CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text("G", fontWeight = FontWeight.Black, fontSize = 13.sp, color = Color(0xFF4285F4))
+                            }
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text(
+                                text = "Continue with Google",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = TextDarkSlate
+                            )
+                        }
+                    }
+
+                    if (authStatusMessage != null) {
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = authStatusMessage!!,
+                            fontSize = 11.sp,
+                            color = SoftEmeraldDark
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(18.dp))
+
+            // Main Credentials Card (Email / Mobile OTP Registration)
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -131,7 +249,7 @@ fun AuthScreen(
                 ) {
                     // Sign In / Sign Up Switcher
                     SegmentedControl(
-                        items = listOf("Sign In", "Sign Up"),
+                        items = listOf("Sign In", "Register Mobile / Sign Up"),
                         selectedIndex = if (isSignUp) 1 else 0,
                         onSelect = { isSignUp = (it == 1) },
                         modifier = Modifier.testTag("auth_mode_toggle")
@@ -168,7 +286,7 @@ fun AuthScreen(
                         FilterChip(
                             selected = authMethodIndex == 1,
                             onClick = { authMethodIndex = 1; isOtpSent = false },
-                            label = { Text("Phone (OTP)", fontSize = 12.sp, fontWeight = if (authMethodIndex == 1) FontWeight.Bold else FontWeight.Normal) },
+                            label = { Text("Mobile Number", fontSize = 12.sp, fontWeight = if (authMethodIndex == 1) FontWeight.Bold else FontWeight.Normal) },
                             leadingIcon = { Icon(Icons.Outlined.Phone, contentDescription = null, modifier = Modifier.size(16.dp)) },
                             colors = FilterChipDefaults.filterChipColors(
                                 selectedContainerColor = Color.White,
@@ -376,8 +494,9 @@ fun AuthScreen(
                             )
                         )
                     } else {
+                        // Phone number registration / login
                         Text(
-                            text = "PHONE NUMBER",
+                            text = if (isSignUp) "MOBILE NUMBER REGISTRATION" else "MOBILE PHONE NUMBER",
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
                             letterSpacing = 1.sp,
@@ -411,7 +530,7 @@ fun AuthScreen(
                         if (isOtpSent) {
                             Spacer(modifier = Modifier.height(14.dp))
                             Text(
-                                text = "VERIFICATION OTP",
+                                text = "VERIFICATION OTP (FIREBASE PHONE AUTH)",
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
                                 letterSpacing = 1.sp,
@@ -439,12 +558,26 @@ fun AuthScreen(
 
                     Spacer(modifier = Modifier.height(20.dp))
 
-                    // Primary Submit Button with Soft Emerald styling (Clean Minimalism h-14 bg-[#50C878] rounded-2xl)
+                    // Primary Submit Button with Soft Emerald styling
                     Button(
                         onClick = {
                             if (authMethodIndex == 1 && !isOtpSent) {
                                 isOtpSent = true
                                 otpInput = "4821"
+                            } else if (authMethodIndex == 1 && isOtpSent) {
+                                // Complete Firebase Mobile Number Registration
+                                FirebaseAuthManager.registerWithPhoneNumber(
+                                    phone = phoneInput,
+                                    otp = otpInput,
+                                    name = nameInput,
+                                    age = ageInput.toIntOrNull() ?: 28,
+                                    gender = genderInput,
+                                    bloodGroup = bloodGroupInput,
+                                    role = selectedRole,
+                                    onSuccess = { userProfile ->
+                                        onUserProfileReady(userProfile)
+                                    }
+                                )
                             } else {
                                 val isPhone = (authMethodIndex == 1)
                                 val identifier = if (isPhone) "+91 $phoneInput" else emailInput
@@ -475,10 +608,11 @@ fun AuthScreen(
                         )
                     ) {
                         Text(
-                            text = if (authMethodIndex == 1 && !isOtpSent) "Send OTP Verification"
+                            text = if (authMethodIndex == 1 && !isOtpSent) "Send Mobile OTP"
+                            else if (authMethodIndex == 1 && isOtpSent) "Verify OTP & Register Identity"
                             else if (isSignUp) "Create ABHA Health Profile"
                             else "Sign In",
-                            fontSize = 16.sp,
+                            fontSize = 15.sp,
                             fontWeight = FontWeight.Bold
                         )
                     }
@@ -509,21 +643,69 @@ fun AuthScreen(
                         onClick = { isSignUp = !isSignUp },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(52.dp),
+                            .height(50.dp),
                         shape = RoundedCornerShape(16.dp),
                         colors = ButtonDefaults.outlinedButtonColors(contentColor = LightBluePrimary),
                         border = androidx.compose.foundation.BorderStroke(1.5.dp, SurfaceBorder)
                     ) {
                         Text(
-                            text = if (isSignUp) "Sign In to Existing Profile" else "Create New Health Account",
-                            fontSize = 14.sp,
+                            text = if (isSignUp) "Sign In to Existing Profile" else "Register Mobile & Create Account",
+                            fontSize = 13.sp,
                             fontWeight = FontWeight.Bold
                         )
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(18.dp))
+
+            // Cloud Services Status Pill
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp),
+                color = Color(0xFFF1F5F9),
+                border = androidx.compose.foundation.BorderStroke(1.dp, SurfaceBorder)
+            ) {
+                Column(modifier = Modifier.padding(12.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(modifier = Modifier.size(7.dp).clip(CircleShape).background(SoftEmeraldAccent))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Firebase Auth:", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextDarkSlate)
+                        }
+                        Text(
+                            text = FirebaseAuthManager.FIREBASE_PROJECT_ID,
+                            fontSize = 11.sp,
+                            color = LightBlueHeader,
+                            fontFamily = FontFamily.Monospace
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(modifier = Modifier.size(7.dp).clip(CircleShape).background(Color(0xFF3ECF8E)))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Supabase DB:", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextDarkSlate)
+                        }
+                        Text(
+                            text = SupabaseClient.DEFAULT_HOST,
+                            fontSize = 11.sp,
+                            color = LightBlueHeader,
+                            fontFamily = FontFamily.Monospace
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
 
             // Quick Demo Fast-Login Strip
             Text(
@@ -573,7 +755,7 @@ fun AuthScreen(
             Spacer(modifier = Modifier.height(16.dp))
 
             Text(
-                text = "Designed for Android & iOS Compatibility",
+                text = "ABDM Compliant • Firebase Auth & Supabase Synchronized",
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Medium,
                 color = TextLightSlate
@@ -583,3 +765,4 @@ fun AuthScreen(
         }
     }
 }
+

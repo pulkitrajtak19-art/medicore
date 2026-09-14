@@ -55,12 +55,18 @@ fun MainAppContent(viewModel: HealthViewModel) {
     var showVitalsDialog by remember { mutableStateOf(false) }
     var showConsultationDialog by remember { mutableStateOf(false) }
     var showRoleSwitchDialog by remember { mutableStateOf(false) }
+    var showSupabaseDialog by remember { mutableStateOf(false) }
+    var showSupabaseScannerScreen by remember { mutableStateOf(false) }
+    var supabaseScannerQuery by remember { mutableStateOf<String?>(null) }
 
     if (currentUser == null) {
         AuthScreen(
             onLoginSuccess = { id, role, isPhone -> viewModel.login(id, role, isPhone) },
             onSignUpSuccess = { name, id, role, age, gender, blood, isPhone ->
                 viewModel.signUp(name, id, role, age, gender, blood, isPhone)
+            },
+            onUserProfileReady = { profile ->
+                viewModel.setUserProfile(profile)
             }
         )
     } else {
@@ -113,6 +119,37 @@ fun MainAppContent(viewModel: HealthViewModel) {
                         }
 
                         Row(verticalAlignment = Alignment.CenterVertically) {
+                            // Supabase Cloud DB Button
+                            Surface(
+                                shape = RoundedCornerShape(20.dp),
+                                color = Color(0xFFF0FDF4),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF86EFAC)),
+                                modifier = Modifier
+                                    .clickable { showSupabaseDialog = true }
+                                    .testTag("supabase_top_button")
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        Icons.Default.Storage,
+                                        contentDescription = "Supabase Database",
+                                        tint = SoftEmeraldDark,
+                                        modifier = Modifier.size(15.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = "Supabase",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = SoftEmeraldDark
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.width(6.dp))
+
                             // Quick Role Switcher Button
                             Surface(
                                 shape = RoundedCornerShape(20.dp),
@@ -289,18 +326,41 @@ fun MainAppContent(viewModel: HealthViewModel) {
                             onConfirmDoctorReview = { reportId, docName ->
                                 viewModel.confirmDoctorReview(reportId, docName)
                             },
-                            onOpenNewConsultation = { showConsultationDialog = true }
+                            onOpenNewConsultation = { showConsultationDialog = true },
+                            onOpenSupabaseScanner = { query ->
+                                supabaseScannerQuery = query
+                                showSupabaseScannerScreen = true
+                            }
                         )
                     }
                     UserRole.MEDICINE_CENTRE -> {
                         MedicineCentreScreen(
                             user = user,
                             prescriptions = prescriptions,
-                            onDispensePrescription = { rxId, name -> viewModel.dispensePrescription(rxId, name) }
+                            onDispensePrescription = { rxId, name -> viewModel.dispensePrescription(rxId, name) },
+                            onOpenSupabaseScanner = { query ->
+                                supabaseScannerQuery = query
+                                showSupabaseScannerScreen = true
+                            }
                         )
                     }
                 }
             }
+        }
+
+        // Live Supabase Patient Dossier & QR Scanner Full Screen
+        if (showSupabaseScannerScreen) {
+            SupabasePatientPortalScannerScreen(
+                currentRole = user.role,
+                initialQuery = supabaseScannerQuery,
+                onNavigateBack = {
+                    showSupabaseScannerScreen = false
+                    supabaseScannerQuery = null
+                },
+                onDispensePrescription = { rxId, fac ->
+                    viewModel.dispensePrescription(rxId, fac)
+                }
+            )
         }
 
         // Dialogs
@@ -390,6 +450,20 @@ fun MainAppContent(viewModel: HealthViewModel) {
                     TextButton(onClick = { showRoleSwitchDialog = false }) {
                         Text("Close", color = LightBluePrimary)
                     }
+                }
+            )
+        }
+
+        if (showSupabaseDialog) {
+            SupabaseSyncDialog(
+                user = user,
+                vitals = vitals,
+                prescriptions = prescriptions,
+                onDismiss = { showSupabaseDialog = false },
+                onOpenScanner = {
+                    showSupabaseDialog = false
+                    supabaseScannerQuery = user.abhaId
+                    showSupabaseScannerScreen = true
                 }
             )
         }

@@ -30,7 +30,8 @@ import com.example.ui.theme.*
 fun MedicineCentreScreen(
     user: UserProfile,
     prescriptions: List<Prescription>,
-    onDispensePrescription: (prescriptionId: String, pharmacyName: String) -> Boolean
+    onDispensePrescription: (prescriptionId: String, pharmacyName: String) -> Boolean,
+    onOpenSupabaseScanner: ((String?) -> Unit)? = null
 ) {
     var searchToken by remember { mutableStateOf("") }
     var snackbarMessage by remember { mutableStateOf<String?>(null) }
@@ -128,6 +129,34 @@ fun MedicineCentreScreen(
                     ),
                     shape = RoundedCornerShape(12.dp)
                 )
+
+                if (onOpenSupabaseScanner != null) {
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Button(
+                        onClick = { onOpenSupabaseScanner(searchToken.ifBlank { "ABHA-91-8472-9102-4412" }) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(44.dp)
+                            .testTag("pharmacy_open_supabase_scanner_btn"),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF10B981),
+                            contentColor = Color.White
+                        )
+                    ) {
+                        Icon(
+                            Icons.Default.CloudDownload,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            "Scan QR & Retrieve Patient Prescriptions (Supabase)",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
             }
         }
 
