@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <group
+        android:translateX="22"
+        android:translateY="22">
+        <!-- Shield Background with Soft Emerald Gradient / Fill -->
+        <path
+            android:fillColor="#10B981"
+            android:pathData="M32,4 C48,4 56,12 56,12 C56,36 44,52 32,60 C20,52 8,36 8,12 C8,12 16,4 32,4 Z" />
+        <!-- Inner Medical Cross & Health Wave in Soft Light Blue / White -->
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M28,18 H36 V28 H46 V36 H36 V46 H28 V36 H18 V28 H28 Z" />
+        <!-- Pulse accent in Light Blue -->
+        <path
+            android:fillColor="#0284C7"
+            android:pathData="M32,24 C34.2,24 36,25.8 36,28 C36,30.2 34.2,32 32,32 C29.8,32 28,30.2 28,28 C28,25.8 29.8,24 32,24 Z" />
+    </group>
+</vector>
