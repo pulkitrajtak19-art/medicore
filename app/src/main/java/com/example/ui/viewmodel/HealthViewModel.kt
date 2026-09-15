@@ -53,6 +53,8 @@ class HealthViewModel(
     }
 
     fun updateUserProfile(
+        name: String? = null,
+        email: String? = null,
         age: Int,
         gender: String,
         heightCm: Double,
@@ -64,7 +66,7 @@ class HealthViewModel(
         emergencyContact: String
     ): UserProfile? {
         return repository.updateUserProfile(
-            age, gender, heightCm, weightKg, allergies, bloodGroup, phone, city, emergencyContact
+            name, email, age, gender, heightCm, weightKg, allergies, bloodGroup, phone, city, emergencyContact
         )
     }
 
@@ -73,6 +75,7 @@ class HealthViewModel(
     }
 
     fun logout() {
+        com.example.data.auth.FirebaseAuthManager.signOut()
         repository.logout()
     }
 

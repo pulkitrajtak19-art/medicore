@@ -418,6 +418,8 @@ class HealthRepository {
     }
 
     fun updateUserProfile(
+        name: String? = null,
+        email: String? = null,
         age: Int,
         gender: String,
         heightCm: Double,
@@ -430,6 +432,8 @@ class HealthRepository {
     ): UserProfile? {
         val current = _currentUser.value ?: return null
         val updated = current.copy(
+            name = if (!name.isNullOrBlank()) name else current.name,
+            email = if (!email.isNullOrBlank()) email else current.email,
             age = age,
             gender = gender,
             heightCm = heightCm,
@@ -447,8 +451,8 @@ class HealthRepository {
         addAuditLog(
             actorName = updated.name,
             actorRole = updated.role.displayName,
-            action = "Profile Updated in Supabase",
-            details = "Updated height: ${heightCm}cm, weight: ${weightKg}kg, allergies: $allergies"
+            action = "Profile Details Updated",
+            details = "Updated profile for ${updated.name}: Age $age, Blood Group $bloodGroup, Allergies: $allergies"
         )
         return updated
     }

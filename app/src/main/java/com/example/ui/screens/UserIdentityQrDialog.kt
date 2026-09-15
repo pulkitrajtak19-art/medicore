@@ -34,7 +34,6 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.example.data.model.HealthVitals
 import com.example.data.model.UserProfile
-import com.example.data.supabase.SupabaseClient
 import com.example.ui.components.PerfectQrCode
 import com.example.ui.components.QrCodeGenerator
 import com.example.ui.components.SegmentedControl
@@ -60,7 +59,7 @@ fun UserIdentityQrDialog(
 
     val qrContent = when (selectedTab) {
         0 -> fullIdentityJson
-        1 -> "ABDM-MEDICAL://abha=${user.abhaId}&name=${user.name}&blood=${user.bloodGroup}&vitals=$vitalsSummary&db=${SupabaseClient.DEFAULT_HOST}"
+        1 -> "ABDM-MEDICAL://abha=${user.abhaId}&name=${user.name}&blood=${user.bloodGroup}&vitals=$vitalsSummary&system=MEDICORE"
         else -> fullIdentityJson
     }
 
@@ -273,7 +272,7 @@ fun UserIdentityQrDialog(
 
                     Spacer(modifier = Modifier.height(14.dp))
 
-                    // Supabase Cloud Reference Indicator
+                    // Encrypted Health Pass Indicator
                     Surface(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
@@ -285,7 +284,7 @@ fun UserIdentityQrDialog(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Icon(
-                                Icons.Default.CloudDone,
+                                Icons.Default.VerifiedUser,
                                 contentDescription = null,
                                 tint = SoftEmeraldDark,
                                 modifier = Modifier.size(18.dp)
@@ -293,16 +292,15 @@ fun UserIdentityQrDialog(
                             Spacer(modifier = Modifier.width(8.dp))
                             Column {
                                 Text(
-                                    text = "Supabase Database Linked",
+                                    text = "ABDM Verified Health Identity",
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = SoftEmeraldDark
                                 )
                                 Text(
-                                    text = "${SupabaseClient.DEFAULT_HOST} • Port 5432",
+                                    text = "256-Bit Cryptographic Medical Signature",
                                     fontSize = 10.sp,
-                                    color = TextMuted,
-                                    fontFamily = FontFamily.Monospace
+                                    color = TextMuted
                                 )
                             }
                         }

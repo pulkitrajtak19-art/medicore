@@ -29,11 +29,15 @@ import com.example.ui.theme.*
 import com.example.ui.viewmodel.HealthViewModel
 
 sealed class PatientTab(val title: String, val iconFilled: ImageVector, val iconOutlined: ImageVector) {
-    object Home : PatientTab("Health ID", Icons.Default.HealthAndSafety, Icons.Outlined.HealthAndSafety)
-    object VoiceTouchIntake : PatientTab("Voice / Touch Intake", Icons.Default.RecordVoiceOver, Icons.Outlined.RecordVoiceOver)
+    object Home : PatientTab("Medicore", Icons.Default.HealthAndSafety, Icons.Outlined.HealthAndSafety)
+    object VoiceIntake : PatientTab("Voice Intake", Icons.Default.Mic, Icons.Outlined.Mic)
     object Timeline : PatientTab("Timeline", Icons.Default.Timeline, Icons.Outlined.Timeline)
     object Medicines : PatientTab("Medicines", Icons.Default.Medication, Icons.Outlined.Medication)
     object Consent : PatientTab("Privacy", Icons.Default.Shield, Icons.Outlined.Shield)
+
+    companion object {
+        val VoiceTouchIntake = VoiceIntake
+    }
 }
 
 @Composable
@@ -54,10 +58,9 @@ fun MainAppContent(viewModel: HealthViewModel) {
     var selectedPatientTab by remember { mutableStateOf<PatientTab>(PatientTab.Home) }
     var showVitalsDialog by remember { mutableStateOf(false) }
     var showConsultationDialog by remember { mutableStateOf(false) }
+    var activeDoctorPatientName by remember { mutableStateOf("Priya Sharma") }
     var showRoleSwitchDialog by remember { mutableStateOf(false) }
-    var showSupabaseDialog by remember { mutableStateOf(false) }
-    var showSupabaseScannerScreen by remember { mutableStateOf(false) }
-    var supabaseScannerQuery by remember { mutableStateOf<String?>(null) }
+    var showProfileDialog by remember { mutableStateOf(false) }
 
     if (currentUser == null) {
         AuthScreen(
@@ -78,14 +81,19 @@ fun MainAppContent(viewModel: HealthViewModel) {
                     color = Color.White,
                     border = androidx.compose.foundation.BorderStroke(1.dp, SurfaceBorder)
                 ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .statusBarsPadding()
-                            .padding(horizontal = 16.dp, vertical = 10.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                    Box(
+                        modifier = Modifier.fillMaxWidth(),
+                        contentAlignment = Alignment.Center
                     ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .widthIn(max = 840.dp)
+                                .statusBarsPadding()
+                                .padding(horizontal = 16.dp, vertical = 10.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Box(
                                 modifier = Modifier
@@ -119,31 +127,31 @@ fun MainAppContent(viewModel: HealthViewModel) {
                         }
 
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            // Supabase Cloud DB Button
+                            // Profile Details Button
                             Surface(
                                 shape = RoundedCornerShape(20.dp),
-                                color = Color(0xFFF0FDF4),
-                                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF86EFAC)),
+                                color = LightBlueContainer.copy(alpha = 0.5f),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, SurfaceBorder),
                                 modifier = Modifier
-                                    .clickable { showSupabaseDialog = true }
-                                    .testTag("supabase_top_button")
+                                    .clickable { showProfileDialog = true }
+                                    .testTag("top_bar_profile_btn")
                             ) {
                                 Row(
                                     modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Icon(
-                                        Icons.Default.Storage,
-                                        contentDescription = "Supabase Database",
-                                        tint = SoftEmeraldDark,
+                                        Icons.Default.AccountCircle,
+                                        contentDescription = "User Profile",
+                                        tint = LightBluePrimary,
                                         modifier = Modifier.size(15.dp)
                                     )
                                     Spacer(modifier = Modifier.width(4.dp))
                                     Text(
-                                        text = "Supabase",
+                                        text = "Profile",
                                         fontSize = 11.sp,
                                         fontWeight = FontWeight.Bold,
-                                        color = SoftEmeraldDark
+                                        color = LightBlueHeader
                                     )
                                 }
                             }
@@ -193,7 +201,8 @@ fun MainAppContent(viewModel: HealthViewModel) {
                         }
                     }
                 }
-            },
+            }
+        },
             bottomBar = {
                 if (user.role == UserRole.PATIENT) {
                     NavigationBar(
@@ -203,7 +212,7 @@ fun MainAppContent(viewModel: HealthViewModel) {
                     ) {
                         val tabs = listOf(
                             PatientTab.Home,
-                            PatientTab.VoiceTouchIntake,
+                            PatientTab.VoiceIntake,
                             PatientTab.Timeline,
                             PatientTab.Medicines,
                             PatientTab.Consent
@@ -214,7 +223,7 @@ fun MainAppContent(viewModel: HealthViewModel) {
                                 selected = isSelected,
                                 onClick = { selectedPatientTab = tab },
                                 modifier = Modifier.testTag(
-                                    if (tab == PatientTab.VoiceTouchIntake) "tab_voice_touch_intake"
+                                    if (tab == PatientTab.VoiceIntake) "tab_voice_intake"
                                     else "tab_${tab.title.lowercase().replace(" ", "_")}"
                                 ),
                                 icon = {
@@ -226,11 +235,12 @@ fun MainAppContent(viewModel: HealthViewModel) {
                                 label = {
                                     Text(
                                         text = tab.title,
-                                        fontSize = if (tab == PatientTab.VoiceTouchIntake) 8.5.sp else 9.5.sp,
-                                        lineHeight = 10.sp,
+                                        fontSize = 9.5.sp,
+                                        lineHeight = 11.sp,
                                         textAlign = TextAlign.Center,
                                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                        maxLines = 2
+                                        maxLines = 1,
+                                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                                     )
                                 },
                                 colors = NavigationBarItemDefaults.colors(
@@ -246,46 +256,56 @@ fun MainAppContent(viewModel: HealthViewModel) {
                 }
             }
         ) { innerPadding ->
-            Box(modifier = Modifier.padding(innerPadding).fillMaxSize()) {
-                when (user.role) {
-                    UserRole.PATIENT -> {
-                        when (selectedPatientTab) {
-                            PatientTab.Home -> PatientHomeScreen(
-                                user = user,
-                                vitals = vitals,
-                                reminders = reminders,
-                                stepMetrics = stepMetrics,
-                                activeCheckIn = activeCheckIn,
-                                onOpenCheckIn = { showVitalsDialog = true },
-                                onCheckInFacility = { fac ->
-                                    viewModel.performFacilityCheckIn(
-                                        fac.facilityId,
-                                        fac.facilityName,
-                                        fac.department,
-                                        fac.counterNumber,
-                                        fac.qrRawData
-                                    )
-                                },
-                                onCheckoutFacility = { viewModel.checkoutFacility() },
-                                onToggleReminder = { viewModel.markReminderTaken(it) },
-                                onAddSteps = { viewModel.addSteps(500) },
-                                onAddWater = { viewModel.addWater() },
-                                onNavigateToTimeline = { selectedPatientTab = PatientTab.Timeline },
-                                onNavigateToMedications = { selectedPatientTab = PatientTab.Medicines },
-                                onNavigateToConsent = { selectedPatientTab = PatientTab.Consent },
-                                onNavigateToCaseIntake = { selectedPatientTab = PatientTab.VoiceTouchIntake }
-                            )
-                            PatientTab.VoiceTouchIntake -> VoiceTouchIntakeScreen(
-                                user = user,
-                                vitals = vitals,
-                                caseIntakes = caseIntakes,
-                                onSaveIntake = { mode, lang, transcript, symptoms, duration, severity, allergies, meds, recTitle, recOcr ->
-                                    viewModel.saveCaseIntake(
-                                        mode, lang, transcript, symptoms, duration, severity, allergies, meds, recTitle, recOcr
-                                    )
-                                },
-                                onNavigateToTimeline = { selectedPatientTab = PatientTab.Timeline }
-                            )
+            Box(
+                modifier = Modifier
+                    .padding(innerPadding)
+                    .fillMaxSize(),
+                contentAlignment = Alignment.TopCenter
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .widthIn(max = 840.dp)
+                ) {
+                    when (user.role) {
+                        UserRole.PATIENT -> {
+                            when (selectedPatientTab) {
+                                PatientTab.Home -> PatientHomeScreen(
+                                    user = user,
+                                    vitals = vitals,
+                                    reminders = reminders,
+                                    stepMetrics = stepMetrics,
+                                    activeCheckIn = activeCheckIn,
+                                    onOpenCheckIn = { showVitalsDialog = true },
+                                    onCheckInFacility = { fac ->
+                                        viewModel.performFacilityCheckIn(
+                                            fac.facilityId,
+                                            fac.facilityName,
+                                            fac.department,
+                                            fac.counterNumber,
+                                            fac.qrRawData
+                                        )
+                                    },
+                                    onCheckoutFacility = { viewModel.checkoutFacility() },
+                                    onToggleReminder = { viewModel.markReminderTaken(it) },
+                                    onAddSteps = { viewModel.addSteps(500) },
+                                    onAddWater = { viewModel.addWater() },
+                                    onNavigateToTimeline = { selectedPatientTab = PatientTab.Timeline },
+                                    onNavigateToMedications = { selectedPatientTab = PatientTab.Medicines },
+                                    onNavigateToConsent = { selectedPatientTab = PatientTab.Consent },
+                                    onNavigateToCaseIntake = { selectedPatientTab = PatientTab.VoiceIntake }
+                                )
+                                PatientTab.VoiceIntake -> VoiceIntakeScreen(
+                                    user = user,
+                                    vitals = vitals,
+                                    caseIntakes = caseIntakes,
+                                    onSaveIntake = { mode, lang, transcript, symptoms, duration, severity, allergies, meds, recTitle, recOcr ->
+                                        viewModel.saveCaseIntake(
+                                            mode, lang, transcript, symptoms, duration, severity, allergies, meds, recTitle, recOcr
+                                        )
+                                    },
+                                    onNavigateToTimeline = { selectedPatientTab = PatientTab.Timeline }
+                                )
                             PatientTab.Timeline -> PatientTimelineScreen(
                                 consultations = consultations,
                                 doctorReports = doctorReviewReports,
@@ -326,10 +346,9 @@ fun MainAppContent(viewModel: HealthViewModel) {
                             onConfirmDoctorReview = { reportId, docName ->
                                 viewModel.confirmDoctorReview(reportId, docName)
                             },
-                            onOpenNewConsultation = { showConsultationDialog = true },
-                            onOpenSupabaseScanner = { query ->
-                                supabaseScannerQuery = query
-                                showSupabaseScannerScreen = true
+                            onOpenNewConsultation = { patientName ->
+                                activeDoctorPatientName = patientName
+                                showConsultationDialog = true
                             }
                         )
                     }
@@ -337,31 +356,13 @@ fun MainAppContent(viewModel: HealthViewModel) {
                         MedicineCentreScreen(
                             user = user,
                             prescriptions = prescriptions,
-                            onDispensePrescription = { rxId, name -> viewModel.dispensePrescription(rxId, name) },
-                            onOpenSupabaseScanner = { query ->
-                                supabaseScannerQuery = query
-                                showSupabaseScannerScreen = true
-                            }
+                            onDispensePrescription = { rxId, name -> viewModel.dispensePrescription(rxId, name) }
                         )
                     }
                 }
             }
         }
-
-        // Live Supabase Patient Dossier & QR Scanner Full Screen
-        if (showSupabaseScannerScreen) {
-            SupabasePatientPortalScannerScreen(
-                currentRole = user.role,
-                initialQuery = supabaseScannerQuery,
-                onNavigateBack = {
-                    showSupabaseScannerScreen = false
-                    supabaseScannerQuery = null
-                },
-                onDispensePrescription = { rxId, fac ->
-                    viewModel.dispensePrescription(rxId, fac)
-                }
-            )
-        }
+    }
 
         // Dialogs
         if (showVitalsDialog) {
@@ -375,7 +376,7 @@ fun MainAppContent(viewModel: HealthViewModel) {
 
         if (showConsultationDialog) {
             DoctorConsultationDialog(
-                patientName = "Priya Sharma",
+                patientName = activeDoctorPatientName,
                 doctorName = user.name,
                 onDismiss = { showConsultationDialog = false },
                 onSaveConsultation = { complaint, diag, remarks, items ->
@@ -454,16 +455,24 @@ fun MainAppContent(viewModel: HealthViewModel) {
             )
         }
 
-        if (showSupabaseDialog) {
-            SupabaseSyncDialog(
+        if (showProfileDialog) {
+            ProfileSectionDialog(
                 user = user,
-                vitals = vitals,
-                prescriptions = prescriptions,
-                onDismiss = { showSupabaseDialog = false },
-                onOpenScanner = {
-                    showSupabaseDialog = false
-                    supabaseScannerQuery = user.abhaId
-                    showSupabaseScannerScreen = true
+                onDismiss = { showProfileDialog = false },
+                onSaveProfile = { name, email, phone, age, gender, bloodGroup, heightCm, weightKg, city, emergencyContact, allergies ->
+                    viewModel.updateUserProfile(
+                        name = name,
+                        email = email,
+                        phone = phone,
+                        age = age,
+                        gender = gender,
+                        bloodGroup = bloodGroup,
+                        heightCm = heightCm,
+                        weightKg = weightKg,
+                        city = city,
+                        emergencyContact = emergencyContact,
+                        allergies = allergies
+                    )
                 }
             )
         }

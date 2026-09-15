@@ -107,6 +107,6 @@ class LongitudinalTimelineTest {
     @Test
     fun `voice touch intake tab title is configured correctly`() {
         val tab = com.example.ui.PatientTab.VoiceTouchIntake
-        assertEquals("Voice / Touch Intake", tab.title)
+        assertEquals("Voice Intake", tab.title)
     }
 }

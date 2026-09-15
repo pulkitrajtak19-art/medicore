@@ -441,7 +441,7 @@ fun PatientHomeScreen(
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        // SIH 2026 Case-Taking Intake Banner (Voice / Touch Intake & Doctor Review)
+        // Indic AI Voice Symptom Intake Banner
         Surface(
             shape = RoundedCornerShape(16.dp),
             color = SoftEmeraldLight,
@@ -462,7 +462,7 @@ fun PatientHomeScreen(
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Icon(
-                            Icons.Default.RecordVoiceOver,
+                            Icons.Default.Mic,
                             contentDescription = null,
                             tint = Color.White,
                             modifier = Modifier.size(20.dp)
@@ -473,7 +473,7 @@ fun PatientHomeScreen(
                 Column(modifier = Modifier.weight(1f)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
-                            text = "Voice / Touch Case Intake",
+                            text = "Voice Symptom Intake",
                             fontSize = 13.sp,
                             fontWeight = FontWeight.Bold,
                             color = SoftEmeraldDark
@@ -484,7 +484,7 @@ fun PatientHomeScreen(
                             color = SoftEmeraldContainer
                         ) {
                             Text(
-                                text = "NEW",
+                                text = "INDIC AI",
                                 fontSize = 8.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = SoftEmeraldDark,
@@ -493,7 +493,7 @@ fun PatientHomeScreen(
                         }
                     }
                     Text(
-                        text = "Prepare symptoms & doctor review summary before visit",
+                        text = "Speak your symptoms naturally in any Indian language",
                         fontSize = 11.sp,
                         color = TextDarkSlate
                     )

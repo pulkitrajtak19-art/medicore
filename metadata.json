@@ -1,6 +1,6 @@
 {
-  "name": "Health ID",
-  "description": "Portable, consent-controlled digital patient health identity platform with ABDM QR code scanner for fast hospital check-in, OPD queue passes, voice/touch symptom intake, doctor review summary reports, early check-in, vitals, digital prescriptions, and longitudinal care timeline.",
+  "name": "Medicore",
+  "description": "Comprehensive, consent-controlled digital healthcare identity and care management platform with real-time Indic voice symptom triage, secure doctor QR dossier scanning, early check-in, longitudinal care timeline, and patient profile management.",
   "requestFramePermissions": [],
   "majorCapabilities": [
     "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"

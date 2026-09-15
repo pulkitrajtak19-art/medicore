@@ -30,19 +30,24 @@ import com.example.ui.theme.*
 fun MedicineCentreScreen(
     user: UserProfile,
     prescriptions: List<Prescription>,
-    onDispensePrescription: (prescriptionId: String, pharmacyName: String) -> Boolean,
-    onOpenSupabaseScanner: ((String?) -> Unit)? = null
+    onDispensePrescription: (prescriptionId: String, pharmacyName: String) -> Boolean
 ) {
     var searchToken by remember { mutableStateOf("") }
     var snackbarMessage by remember { mutableStateOf<String?>(null) }
 
-    Column(
+    Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(WarmWhiteBackground)
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp, vertical = 12.dp)
+            .background(WarmWhiteBackground),
+        contentAlignment = Alignment.TopCenter
     ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .widthIn(max = 760.dp)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp, vertical = 12.dp)
+        ) {
         // Medicine Centre Banner
         Card(
             modifier = Modifier
@@ -129,34 +134,6 @@ fun MedicineCentreScreen(
                     ),
                     shape = RoundedCornerShape(12.dp)
                 )
-
-                if (onOpenSupabaseScanner != null) {
-                    Spacer(modifier = Modifier.height(10.dp))
-                    Button(
-                        onClick = { onOpenSupabaseScanner(searchToken.ifBlank { "ABHA-91-8472-9102-4412" }) },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(44.dp)
-                            .testTag("pharmacy_open_supabase_scanner_btn"),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFF10B981),
-                            contentColor = Color.White
-                        )
-                    ) {
-                        Icon(
-                            Icons.Default.CloudDownload,
-                            contentDescription = null,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            "Scan QR & Retrieve Patient Prescriptions (Supabase)",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                }
             }
         }
 
@@ -358,5 +335,6 @@ fun MedicineCentreScreen(
         }
 
         Spacer(modifier = Modifier.height(24.dp))
+        }
     }
 }

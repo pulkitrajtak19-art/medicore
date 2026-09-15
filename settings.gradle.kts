@@ -22,6 +22,6 @@ dependencyResolutionManagement {
   }
 }
 
-rootProject.name = "Health ID"
+rootProject.name = "Medicore"
 
 include(":app")

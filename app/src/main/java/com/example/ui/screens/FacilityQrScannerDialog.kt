@@ -2,7 +2,10 @@ package com.example.ui.screens
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.graphics.BitmapFactory
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
@@ -42,7 +45,9 @@ import androidx.core.content.ContextCompat
 import com.example.data.model.FacilityCheckIn
 import com.example.data.model.FacilityQrScanInfo
 import com.example.data.model.UserProfile
+import com.example.ui.components.CameraQrScannerView
 import com.example.ui.components.QrCodeView
+import com.example.ui.components.decodeQrFromBitmap
 import com.example.ui.theme.*
 
 private val SampleFacilities = listOf(
@@ -80,6 +85,34 @@ private val SampleFacilities = listOf(
     )
 )
 
+fun parseFacilityQr(scannedText: String): FacilityQrScanInfo {
+    val trimmed = scannedText.trim()
+    val matched = SampleFacilities.find {
+        it.facilityId.contains(trimmed, ignoreCase = true) ||
+        it.facilityName.contains(trimmed, ignoreCase = true) ||
+        it.rawQrPayload.contains(trimmed, ignoreCase = true)
+    }
+    if (matched != null) return matched
+
+    val facilityName = when {
+        trimmed.contains("AIIMS", ignoreCase = true) -> "AIIMS Hospital"
+        trimmed.contains("Apollo", ignoreCase = true) -> "Apollo Clinic"
+        trimmed.contains("Fortis", ignoreCase = true) -> "Fortis Healthcare"
+        trimmed.contains("Care", ignoreCase = true) -> "Jaipur Care Hospital"
+        trimmed.contains("Max", ignoreCase = true) -> "Max Super Speciality"
+        else -> "Medical Facility (${trimmed.take(16)})"
+    }
+
+    return FacilityQrScanInfo(
+        facilityId = "FAC-" + Integer.toHexString(trimmed.hashCode()).uppercase().take(8),
+        facilityName = facilityName,
+        department = "General OPD & Triage",
+        counterNumber = "Kiosk 1",
+        rawQrPayload = trimmed,
+        checksum = "ABDM-SEC-" + Integer.toHexString(trimmed.hashCode()).uppercase().take(5)
+    )
+}
+
 enum class ScannerStep {
     SCANNING,
     CONFIRM_SHARE,
@@ -116,6 +149,37 @@ fun FacilityQrScannerDialog(
     var manualQrInput by remember { mutableStateOf("") }
     var showManualInput by remember { mutableStateOf(false) }
 
+    // Auto-prompt camera permission on dialog open
+    LaunchedEffect(Unit) {
+        if (!hasCameraPermission) {
+            permissionLauncher.launch(Manifest.permission.CAMERA)
+        }
+    }
+
+    val galleryLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.PickVisualMedia()
+    ) { uri ->
+        if (uri != null) {
+            try {
+                val inputStream = context.contentResolver.openInputStream(uri)
+                val bitmap = BitmapFactory.decodeStream(inputStream)
+                inputStream?.close()
+                if (bitmap != null) {
+                    val decoded = decodeQrFromBitmap(bitmap)
+                    if (!decoded.isNullOrBlank()) {
+                        Toast.makeText(context, "Facility QR recognized from photo!", Toast.LENGTH_SHORT).show()
+                        selectedFacility = parseFacilityQr(decoded)
+                        currentStep = ScannerStep.CONFIRM_SHARE
+                    } else {
+                        Toast.makeText(context, "No valid QR code found in selected photo", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            } catch (e: Exception) {
+                Toast.makeText(context, "Could not open image", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
     // Laser vertical translation animation
     val infiniteTransition = rememberInfiniteTransition(label = "scanner_laser")
     val laserYRatio by infiniteTransition.animateFloat(
@@ -141,271 +205,329 @@ fun FacilityQrScannerDialog(
         ) {
             when (currentStep) {
                 ScannerStep.SCANNING -> {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(16.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        // Top Header Controls
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            IconButton(
-                                onClick = onDismiss,
-                                modifier = Modifier
-                                    .size(40.dp)
-                                    .clip(CircleShape)
-                                    .background(Color.White.copy(alpha = 0.15f))
-                                    .testTag("qr_scanner_close_button")
-                            ) {
-                                Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.White)
-                            }
-
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(
-                                        Icons.Default.QrCodeScanner,
-                                        contentDescription = null,
-                                        tint = SoftEmeraldAccent,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text(
-                                        text = "ABDM Fast Check-in",
-                                        fontSize = 16.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color.White
-                                    )
+                    Box(modifier = Modifier.fillMaxSize()) {
+                        // Live Camera Feed behind viewfinder overlay
+                        if (hasCameraPermission) {
+                            CameraQrScannerView(
+                                modifier = Modifier.fillMaxSize(),
+                                isFlashOn = isFlashOn,
+                                useFrontCamera = isFrontCamera,
+                                onQrScanned = { rawQr ->
+                                    selectedFacility = parseFacilityQr(rawQr)
+                                    currentStep = ScannerStep.CONFIRM_SHARE
                                 }
-                                Text(
-                                    text = "Scan Hospital / Kiosk QR Code",
-                                    fontSize = 12.sp,
-                                    color = Color.White.copy(alpha = 0.7f)
-                                )
-                            }
-
-                            Row {
-                                IconButton(
-                                    onClick = { isFlashOn = !isFlashOn },
-                                    modifier = Modifier
-                                        .size(40.dp)
-                                        .clip(CircleShape)
-                                        .background(
-                                            if (isFlashOn) SoftEmeraldAccent.copy(alpha = 0.3f)
-                                            else Color.White.copy(alpha = 0.15f)
-                                        )
-                                ) {
-                                    Icon(
-                                        if (isFlashOn) Icons.Default.FlashOn else Icons.Default.FlashOff,
-                                        contentDescription = "Flashlight",
-                                        tint = if (isFlashOn) SoftEmeraldAccent else Color.White
-                                    )
-                                }
-                                Spacer(modifier = Modifier.width(8.dp))
-                                IconButton(
-                                    onClick = { isFrontCamera = !isFrontCamera },
-                                    modifier = Modifier
-                                        .size(40.dp)
-                                        .clip(CircleShape)
-                                        .background(Color.White.copy(alpha = 0.15f))
-                                ) {
-                                    Icon(
-                                        Icons.Default.FlipCameraAndroid,
-                                        contentDescription = "Flip Camera",
-                                        tint = Color.White
-                                    )
-                                }
-                            }
+                            )
                         }
 
-                        Spacer(modifier = Modifier.height(16.dp))
-
-                        // Camera Permission Banner if not granted
-                        if (!hasCameraPermission) {
-                            Surface(
-                                shape = RoundedCornerShape(12.dp),
-                                color = WarningAmber.copy(alpha = 0.2f),
-                                border = androidx.compose.foundation.BorderStroke(1.dp, WarningAmber.copy(alpha = 0.5f)),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(bottom = 12.dp)
+                        Column(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(16.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            // Top Header Controls
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Row(
-                                    modifier = Modifier.padding(12.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.SpaceBetween
+                                IconButton(
+                                    onClick = onDismiss,
+                                    modifier = Modifier
+                                        .size(40.dp)
+                                        .clip(CircleShape)
+                                        .background(Color.Black.copy(alpha = 0.5f))
+                                        .testTag("qr_scanner_close_button")
                                 ) {
-                                    Row(
-                                        modifier = Modifier.weight(1f),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Icon(Icons.Default.CameraAlt, contentDescription = null, tint = WarningAmber)
-                                        Spacer(modifier = Modifier.width(8.dp))
+                                    Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.White)
+                                }
+
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(
+                                            Icons.Default.QrCodeScanner,
+                                            contentDescription = null,
+                                            tint = SoftEmeraldAccent,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
                                         Text(
-                                            text = "Camera access required for live optical scanner",
-                                            fontSize = 11.sp,
+                                            text = "ABDM Fast Check-in",
+                                            fontSize = 16.sp,
+                                            fontWeight = FontWeight.Bold,
                                             color = Color.White
                                         )
                                     }
-                                    Button(
-                                        onClick = { permissionLauncher.launch(Manifest.permission.CAMERA) },
-                                        shape = RoundedCornerShape(8.dp),
-                                        colors = ButtonDefaults.buttonColors(containerColor = WarningAmber),
-                                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
-                                        modifier = Modifier.height(32.dp)
+                                    Text(
+                                        text = "Scan Hospital / Kiosk QR Code",
+                                        fontSize = 11.sp,
+                                        color = Color.White.copy(alpha = 0.7f)
+                                    )
+                                }
+
+                                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    // Gallery Picker Button
+                                    IconButton(
+                                        onClick = {
+                                            galleryLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                                        },
+                                        modifier = Modifier
+                                            .size(40.dp)
+                                            .clip(CircleShape)
+                                            .background(Color.Black.copy(alpha = 0.5f))
                                     ) {
-                                        Text("Enable", fontSize = 11.sp, color = Color.Black, fontWeight = FontWeight.Bold)
+                                        Icon(
+                                            Icons.Default.PhotoLibrary,
+                                            contentDescription = "Upload QR Photo",
+                                            tint = Color.White
+                                        )
+                                    }
+
+                                    IconButton(
+                                        onClick = { isFlashOn = !isFlashOn },
+                                        modifier = Modifier
+                                            .size(40.dp)
+                                            .clip(CircleShape)
+                                            .background(
+                                                if (isFlashOn) SoftEmeraldAccent else Color.Black.copy(alpha = 0.5f)
+                                            )
+                                    ) {
+                                        Icon(
+                                            if (isFlashOn) Icons.Default.FlashOn else Icons.Default.FlashOff,
+                                            contentDescription = "Flashlight",
+                                            tint = if (isFlashOn) Color.Black else Color.White
+                                        )
+                                    }
+
+                                    IconButton(
+                                        onClick = { isFrontCamera = !isFrontCamera },
+                                        modifier = Modifier
+                                            .size(40.dp)
+                                            .clip(CircleShape)
+                                            .background(Color.Black.copy(alpha = 0.5f))
+                                    ) {
+                                        Icon(
+                                            Icons.Default.FlipCameraAndroid,
+                                            contentDescription = "Flip Camera",
+                                            tint = Color.White
+                                        )
                                     }
                                 }
                             }
-                        }
 
-                        // Central Scanning Viewfinder Frame
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .fillMaxWidth(),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            // Viewfinder Reticle Box
-                            Box(
-                                modifier = Modifier
-                                    .size(260.dp)
-                                    .clip(RoundedCornerShape(20.dp))
-                                    .background(Color(0xFF1E293B).copy(alpha = 0.7f))
-                                    .border(1.5.dp, Color.White.copy(alpha = 0.2f), RoundedCornerShape(20.dp))
-                                    .testTag("qr_scanner_viewfinder")
-                            ) {
-                                // Corner brackets & Reticle Canvas
-                                Canvas(modifier = Modifier.fillMaxSize()) {
-                                    val strokeWidth = 5.dp.toPx()
-                                    val cornerLength = 32.dp.toPx()
-                                    val cornerColor = SoftEmeraldAccent
+                            Spacer(modifier = Modifier.height(14.dp))
 
-                                    // Top-Left Corner
-                                    drawLine(cornerColor, Offset(0f, 0f), Offset(cornerLength, 0f), strokeWidth)
-                                    drawLine(cornerColor, Offset(0f, 0f), Offset(0f, cornerLength), strokeWidth)
-
-                                    // Top-Right Corner
-                                    drawLine(cornerColor, Offset(size.width, 0f), Offset(size.width - cornerLength, 0f), strokeWidth)
-                                    drawLine(cornerColor, Offset(size.width, 0f), Offset(size.width, cornerLength), strokeWidth)
-
-                                    // Bottom-Left Corner
-                                    drawLine(cornerColor, Offset(0f, size.height), Offset(cornerLength, size.height), strokeWidth)
-                                    drawLine(cornerColor, Offset(0f, size.height), Offset(0f, size.height - cornerLength), strokeWidth)
-
-                                    // Bottom-Right Corner
-                                    drawLine(cornerColor, Offset(size.width, size.height), Offset(size.width - cornerLength, size.height), strokeWidth)
-                                    drawLine(cornerColor, Offset(size.width, size.height), Offset(size.width, size.height - cornerLength), strokeWidth)
-
-                                    // Animated Laser Line
-                                    val laserY = size.height * laserYRatio
-                                    drawLine(
-                                        brush = Brush.horizontalGradient(
-                                            colors = listOf(
-                                                Color.Transparent,
-                                                SoftEmeraldAccent.copy(alpha = 0.8f),
-                                                SoftEmeraldAccent,
-                                                SoftEmeraldAccent.copy(alpha = 0.8f),
-                                                Color.Transparent
-                                            )
-                                        ),
-                                        start = Offset(12.dp.toPx(), laserY),
-                                        end = Offset(size.width - 12.dp.toPx(), laserY),
-                                        strokeWidth = 3.dp.toPx()
-                                    )
-                                }
-
-                                // Hint inside viewfinder
-                                Column(
+                            // Camera Permission Banner if not granted
+                            if (!hasCameraPermission) {
+                                Surface(
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = Color(0xFF1E293B),
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, SoftEmeraldAccent.copy(alpha = 0.5f)),
                                     modifier = Modifier
-                                        .align(Alignment.Center)
-                                        .padding(16.dp),
-                                    horizontalAlignment = Alignment.CenterHorizontally
+                                        .fillMaxWidth()
+                                        .padding(bottom = 12.dp)
                                 ) {
-                                    Icon(
-                                        Icons.Outlined.QrCode,
-                                        contentDescription = null,
-                                        tint = Color.White.copy(alpha = 0.25f),
-                                        modifier = Modifier.size(64.dp)
-                                    )
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                    Text(
-                                        text = "Point camera at facility check-in QR",
-                                        fontSize = 12.sp,
-                                        color = Color.White.copy(alpha = 0.6f),
-                                        textAlign = TextAlign.Center
-                                    )
+                                    Row(
+                                        modifier = Modifier.padding(12.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.weight(1f),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Icon(Icons.Default.CameraAlt, contentDescription = null, tint = SoftEmeraldAccent)
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Text(
+                                                text = "Camera access required for live optical scanner",
+                                                fontSize = 11.sp,
+                                                color = Color.White
+                                            )
+                                        }
+                                        Button(
+                                            onClick = { permissionLauncher.launch(Manifest.permission.CAMERA) },
+                                            shape = RoundedCornerShape(8.dp),
+                                            colors = ButtonDefaults.buttonColors(containerColor = SoftEmeraldAccent),
+                                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                                            modifier = Modifier.height(32.dp)
+                                        ) {
+                                            Text("Enable", fontSize = 11.sp, color = Color.White, fontWeight = FontWeight.Bold)
+                                        }
+                                    }
                                 }
                             }
-                        }
 
-                        // Bottom Section: Instant Facility Selector & Manual Trigger
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 8.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            Text(
-                                text = "TAP A FACILITY TO TEST SCAN & SHARE:",
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.White.copy(alpha = 0.7f),
-                                letterSpacing = 0.5.sp
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-
-                            // Quick facility test chips
-                            LazyRow(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            // Central Scanning Viewfinder Frame
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .fillMaxWidth(),
+                                contentAlignment = Alignment.Center
                             ) {
-                                items(SampleFacilities) { fac ->
-                                    Surface(
-                                        shape = RoundedCornerShape(12.dp),
-                                        color = if (selectedFacility.facilityId == fac.facilityId)
-                                            SoftEmeraldAccent.copy(alpha = 0.25f)
-                                        else Color(0xFF1E293B),
-                                        border = androidx.compose.foundation.BorderStroke(
-                                            1.dp,
-                                            if (selectedFacility.facilityId == fac.facilityId) SoftEmeraldAccent else Color.White.copy(alpha = 0.15f)
-                                        ),
-                                        modifier = Modifier
-                                            .clickable {
-                                                selectedFacility = fac
-                                                currentStep = ScannerStep.CONFIRM_SHARE
-                                            }
-                                            .testTag("preset_facility_${fac.facilityId}")
-                                    ) {
-                                        Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
-                                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                                Icon(
-                                                    Icons.Default.LocalHospital,
-                                                    contentDescription = null,
-                                                    tint = SoftEmeraldAccent,
-                                                    modifier = Modifier.size(14.dp)
+                                // Viewfinder Reticle Box
+                                Box(
+                                    modifier = Modifier
+                                        .size(260.dp)
+                                        .clip(RoundedCornerShape(20.dp))
+                                        .border(2.dp, if (hasCameraPermission) SoftEmeraldAccent else Color.White.copy(alpha = 0.3f), RoundedCornerShape(20.dp))
+                                        .testTag("qr_scanner_viewfinder")
+                                ) {
+                                    // Corner brackets & Reticle Canvas
+                                    Canvas(modifier = Modifier.fillMaxSize()) {
+                                        val strokeWidth = 5.dp.toPx()
+                                        val cornerLength = 32.dp.toPx()
+                                        val cornerColor = SoftEmeraldAccent
+
+                                        // Top-Left Corner
+                                        drawLine(cornerColor, Offset(0f, 0f), Offset(cornerLength, 0f), strokeWidth)
+                                        drawLine(cornerColor, Offset(0f, 0f), Offset(0f, cornerLength), strokeWidth)
+
+                                        // Top-Right Corner
+                                        drawLine(cornerColor, Offset(size.width, 0f), Offset(size.width - cornerLength, 0f), strokeWidth)
+                                        drawLine(cornerColor, Offset(size.width, 0f), Offset(size.width, cornerLength), strokeWidth)
+
+                                        // Bottom-Left Corner
+                                        drawLine(cornerColor, Offset(0f, size.height), Offset(cornerLength, size.height), strokeWidth)
+                                        drawLine(cornerColor, Offset(0f, size.height), Offset(0f, size.height - cornerLength), strokeWidth)
+
+                                        // Bottom-Right Corner
+                                        drawLine(cornerColor, Offset(size.width, size.height), Offset(size.width - cornerLength, size.height), strokeWidth)
+                                        drawLine(cornerColor, Offset(size.width, size.height), Offset(size.width, size.height - cornerLength), strokeWidth)
+
+                                        // Animated Laser Line
+                                        val laserY = size.height * laserYRatio
+                                        drawLine(
+                                            brush = Brush.horizontalGradient(
+                                                colors = listOf(
+                                                    Color.Transparent,
+                                                    SoftEmeraldAccent.copy(alpha = 0.8f),
+                                                    SoftEmeraldAccent,
+                                                    SoftEmeraldAccent.copy(alpha = 0.8f),
+                                                    Color.Transparent
                                                 )
-                                                Spacer(modifier = Modifier.width(6.dp))
-                                                Text(
-                                                    text = fac.facilityName,
-                                                    fontSize = 12.sp,
-                                                    fontWeight = FontWeight.Bold,
-                                                    color = Color.White
-                                                )
-                                            }
+                                            ),
+                                            start = Offset(12.dp.toPx(), laserY),
+                                            end = Offset(size.width - 12.dp.toPx(), laserY),
+                                            strokeWidth = 3.dp.toPx()
+                                        )
+                                    }
+
+                                    if (!hasCameraPermission) {
+                                        Column(
+                                            modifier = Modifier
+                                                .align(Alignment.Center)
+                                                .padding(16.dp),
+                                            horizontalAlignment = Alignment.CenterHorizontally
+                                        ) {
+                                            Icon(
+                                                Icons.Outlined.QrCode,
+                                                contentDescription = null,
+                                                tint = Color.White.copy(alpha = 0.25f),
+                                                modifier = Modifier.size(64.dp)
+                                            )
+                                            Spacer(modifier = Modifier.height(8.dp))
                                             Text(
-                                                text = "${fac.counterNumber} • ${fac.department}",
-                                                fontSize = 10.sp,
-                                                color = Color.White.copy(alpha = 0.7f)
+                                                text = "Enable camera to scan hospital QR",
+                                                fontSize = 12.sp,
+                                                color = Color.White.copy(alpha = 0.6f),
+                                                textAlign = TextAlign.Center
                                             )
                                         }
                                     }
                                 }
                             }
+
+                            // Bottom Section: Instant Facility Selector & Manual Trigger
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 4.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                // Live Camera status indicator
+                                Surface(
+                                    shape = RoundedCornerShape(16.dp),
+                                    color = Color.Black.copy(alpha = 0.6f),
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.2f))
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(7.dp)
+                                                .clip(CircleShape)
+                                                .background(if (hasCameraPermission) SoftEmeraldAccent else Color.Red)
+                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(
+                                            text = if (hasCameraPermission) "Live Camera Active • Point at Hospital QR" else "Camera Offline",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = Color.White
+                                        )
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(8.dp))
+
+                                Text(
+                                    text = "OR SELECT TEST HOSPITAL PRESET:",
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White.copy(alpha = 0.7f),
+                                    letterSpacing = 0.5.sp
+                                )
+                                Spacer(modifier = Modifier.height(6.dp))
+
+                                // Quick facility test chips
+                                LazyRow(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    items(SampleFacilities) { fac ->
+                                        Surface(
+                                            shape = RoundedCornerShape(12.dp),
+                                            color = if (selectedFacility.facilityId == fac.facilityId)
+                                                SoftEmeraldAccent.copy(alpha = 0.25f)
+                                            else Color(0xFF1E293B).copy(alpha = 0.85f),
+                                            border = androidx.compose.foundation.BorderStroke(
+                                                1.dp,
+                                                if (selectedFacility.facilityId == fac.facilityId) SoftEmeraldAccent else Color.White.copy(alpha = 0.15f)
+                                            ),
+                                            modifier = Modifier
+                                                .clickable {
+                                                    selectedFacility = fac
+                                                    currentStep = ScannerStep.CONFIRM_SHARE
+                                                }
+                                                .testTag("preset_facility_${fac.facilityId}")
+                                        ) {
+                                            Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)) {
+                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                    Icon(
+                                                        Icons.Default.LocalHospital,
+                                                        contentDescription = null,
+                                                        tint = SoftEmeraldAccent,
+                                                        modifier = Modifier.size(14.dp)
+                                                    )
+                                                    Spacer(modifier = Modifier.width(6.dp))
+                                                    Text(
+                                                        text = fac.facilityName,
+                                                        fontSize = 11.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = Color.White
+                                                    )
+                                                }
+                                                Text(
+                                                    text = "${fac.counterNumber} • ${fac.department}",
+                                                    fontSize = 9.sp,
+                                                    color = Color.White.copy(alpha = 0.7f)
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
 
                             Spacer(modifier = Modifier.height(14.dp))
 
@@ -436,9 +558,9 @@ fun FacilityQrScannerDialog(
                                         .weight(1.4f)
                                         .testTag("trigger_scan_button")
                                 ) {
-                                    Icon(Icons.Default.QrCodeScanner, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+                                    Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
                                     Spacer(modifier = Modifier.width(6.dp))
-                                    Text("Simulate Scan QR", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                    Text("Confirm & Proceed", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White)
                                 }
                             }
 
@@ -487,9 +609,10 @@ fun FacilityQrScannerDialog(
                         }
                     }
                 }
+            }
 
-                ScannerStep.CONFIRM_SHARE -> {
-                    // ABDM Scan & Share Confirmation Screen
+            ScannerStep.CONFIRM_SHARE -> {
+                // ABDM Scan & Share Confirmation Screen
                     Column(
                         modifier = Modifier
                             .fillMaxSize()
